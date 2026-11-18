@@ -1,0 +1,164 @@
+name: Release runtime packages
+
+# Builds the packages Morphe patches for Android from the recipes of this repository, takes the
+# others as termux-pacman built them, and publishes both with their sources as one release.
+# termux-pacman keeps the latest build of a package alone, so the app downloads them from here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release the packages go to, created when missing
+        required: true
+      build:
+        description: Packages built from this repository, named as their files are
+        default: glibc-2.44-0
+      mirror:
+        description: Packages taken from termux-pacman, named as their files are
+        default: zlib-glibc-1.3.2-0 gcc-libs-glibc-14.2.1-1
+      termux-packages:
+        description: Commit of termux/termux-packages whose scripts build the packages
+        default: master
+
+permissions: {}
+
+env:
+  ARCHES: aarch64 arm x86_64
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, arm, x86_64]
+    steps:
+      - uses: actions/checkout@v7
+
+      # Some build steps run what was built for the target
+      - name: Set up QEMU
+        run: docker run --rm --privileged tonistiigi/binfmt --install all
+
+      # What get-build-package.sh does, at a commit that is recorded with the release
+      - name: Get the build scripts of termux-packages
+        env:
+          REF: ${{ inputs.termux-packages }}
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/termux/termux-packages ../termux-packages
+          git -C ../termux-packages checkout -q "$REF"
+          for i in build-package.sh clean.sh packages x11-packages root-packages scripts ndk-patches; do
+            rm -rf "./$i"
+            cp -r "../termux-packages/$i" ./
+          done
+          mkdir -p ../dist
+          echo "termux/termux-packages $(git -C ../termux-packages rev-parse HEAD)" > ../dist/build-${{ matrix.arch }}.txt
+
+      - name: Build
+        env:
+          BUILD: ${{ inputs.build }}
+          TERMUX_BUILDER_IMAGE_NAME: ghcr.io/termux/package-builder-cgct
+        run: |
+          # zlib-glibc-1.3.2-0 is built by gpkg/zlib
+          names=$(for package in $BUILD; do sed -E 's/-[^-]+-[^-]+$//; s/-glibc$//' <<< "$package"; done)
+          # shellcheck disable=SC2086
+          ./scripts/run-docker.sh ./build-package.sh -I -a ${{ matrix.arch }} --format pacman --library glibc $names
+          echo "$TERMUX_BUILDER_IMAGE_NAME $(docker image inspect --format '{{index .RepoDigests 0}}' "$TERMUX_BUILDER_IMAGE_NAME")" >> ../dist/build-${{ matrix.arch }}.txt
+
+      - name: Collect
+        env:
+          BUILD: ${{ inputs.build }}
+        run: |
+          ls output
+          for package in $BUILD; do
+            file=output/$package-${{ matrix.arch }}.pkg.tar.xz
+            [ -f "$file" ] || { echo "The build made no $file"; exit 1; }
+            cp "$file" ../dist/
+          done
+          mv ../dist dist
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: build-${{ matrix.arch }}
+          path: dist
+          if-no-files-found: error
+
+  mirror:
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Download
+        env:
+          MIRROR: ${{ inputs.mirror }}
+        run: |
+          mkdir dist
+          for package in $MIRROR; do
+            for arch in $ARCHES; do
+              curl -fsSL --retry 3 -o "dist/$package-$arch.pkg.tar.xz" "https://service.termux-pacman.dev/gpkg/$arch/$package-$arch.pkg.tar.xz"
+            done
+          done
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: mirror
+          path: dist
+          if-no-files-found: error
+
+  sources:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect
+        env:
+          PACKAGES: ${{ inputs.build }} ${{ inputs.mirror }}
+        run: |
+          for package in $PACKAGES; do
+            morphe/sources.sh "$package" dist
+          done
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: sources
+          path: dist
+          if-no-files-found: error
+
+  release:
+    needs: [build, mirror, sources]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          BUILD: ${{ inputs.build }}
+          MIRROR: ${{ inputs.mirror }}
+        run: |
+          cd dist
+          {
+            echo "Built from ${GITHUB_REPOSITORY}@${GITHUB_SHA}: $BUILD"
+            echo
+            echo "Taken from termux-pacman as they built it: $MIRROR"
+            echo
+            echo '```'
+            for arch in $ARCHES; do echo "$arch:"; cat "build-$arch.txt"; done
+            echo '```'
+            echo
+            echo "Each *-recipe.tar.xz and *-source.tar.xz is the corresponding source of its package."
+          } > ../notes.md
+          rm build-*.txt
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 ||
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file ../notes.md
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber -- *
