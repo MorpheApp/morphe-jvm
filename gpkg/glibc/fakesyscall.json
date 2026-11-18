@@ -4,7 +4,6 @@
 	"fchmodat(AT_FDCWD, (const char *)a0, a1, 0)": [ "chmod" ],
 	"fchmodat(a0, (const char*)a1, a2, a3)": [ "fchmodat2" ],
 	"fchownat(AT_FDCWD, (const char *)a0, a1, a2, 0)": [ "chown", "chown32" ],
-	"ftruncate(a0, a1)": [ "ftruncate64" ],
 	"clock_gettime(a0, (struct timespec *)a1)": [ "clock_gettime64" ],
 	"fake_epoll_pwait2(a0, (struct epoll_event *)a1, a2, (const struct __timespec64 *)a3, (const __sigset_t *)a4, a5)": [ "epoll_pwait2" ],
 	"getpgrp()": [ "getpgrp" ],

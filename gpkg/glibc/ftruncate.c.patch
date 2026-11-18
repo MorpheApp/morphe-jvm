@@ -1,0 +1,16 @@
+--- a/sysdeps/unix/sysv/linux/ftruncate.c
++++ b/sysdeps/unix/sysv/linux/ftruncate.c
+@@ -24,12 +24,9 @@
+ int
+ __ftruncate (int fd, off_t length)
+ {
+-# ifndef __NR_ftruncate
++  /* Android allows ftruncate64 alone where off_t is 32 bits wide.  */
+   return INLINE_SYSCALL_CALL (ftruncate64, fd,
+ 			      __ALIGNMENT_ARG SYSCALL_LL (length));
+-# else
+-  return INLINE_SYSCALL_CALL (ftruncate, fd, length);
+-# endif
+ }
+ weak_alias (__ftruncate, ftruncate)
+ #endif
