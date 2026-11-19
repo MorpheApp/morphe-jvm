@@ -1,0 +1,12 @@
+--- a/sysdeps/unix/sysv/linux/xstat64.c
++++ b/sysdeps/unix/sysv/linux/xstat64.c
+@@ -47,7 +47,8 @@
+ # elif defined __NR_stat
+   /* Old 64-bit kABI, e.g. powerpc64*, s390x, and x86_64.  */
+   if (vers == _STAT_VER_KERNEL || vers == _STAT_VER_LINUX)
+-    return INLINE_SYSCALL_CALL (stat, name, buf);
++    /* Android allows newfstatat alone, which fills the same struct.  */
++    return INLINE_SYSCALL_CALL (newfstatat, AT_FDCWD, name, buf, 0);
+ # elif defined __NR_newfstatat
+   /* New kABIs which uses generic 64-bit Linux ABI, e.g. aarch64, riscv64.  */
+   if (vers == _STAT_VER_KERNEL)

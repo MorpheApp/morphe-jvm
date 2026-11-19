@@ -18,6 +18,11 @@
 	"shmctl(a0, a1, (struct shmid_ds *)a2)": [ "shmctl" ],
 	"shmdt((const void *)a0)": [ "shmdt" ],
 	"shmget(a0, a1, a2)": [ "shmget" ],
+	"faccessat(AT_FDCWD, (const char *)a0, a1, 0)": [ "access" ],
+	"mkdirat(AT_FDCWD, (const char *)a0, a1)": [ "mkdir" ],
+	"readlinkat(AT_FDCWD, (const char *)a0, (char *)a1, a2)": [ "readlink" ],
+	"renameat(AT_FDCWD, (const char *)a0, AT_FDCWD, (const char *)a1)": [ "rename" ],
+	"unlinkat(AT_FDCWD, (const char *)a0, 0)": [ "unlink" ],
 	"0": [
 		"setuid",
 		"setuid32",

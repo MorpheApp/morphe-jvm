@@ -12,6 +12,7 @@
 // symlink
 // link
 // faccessat
+// readlinkat
 #include <unistd.h>
 
 // accept4
@@ -20,7 +21,11 @@
 #include <sys/socket.h>
 
 // fchmodat
+// mkdirat
 #include <sys/stat.h>
+
+// renameat
+#include <stdio.h>
 
 // clock_gettime
 #include <time.h>
