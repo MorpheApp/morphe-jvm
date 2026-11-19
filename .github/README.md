@@ -11,7 +11,9 @@ termux-pacman keeps the latest build of each package alone, so the app downloads
 - `gpkg/glibc`: Android ends an app, and every process it starts, on a system call its seccomp
   filter does not allow, which differs between ABIs and Android versions. glibc makes the calls
   bionic makes instead wherever upstream does not already, through `fakesyscall.json` and a few
-  patches of the glibc sources (`*.c.patch`).
+  patches of the glibc sources (`*.c.patch`). Reported upstream in
+  [termux-pacman/glibc-packages#404](https://github.com/termux-pacman/glibc-packages/issues/404):
+  once upstream fixes the calls there, a merge takes their fix and these changes go.
 - `morphe/`, `.github/README.md` and `.github/workflows/morphe-release.yml`: the release, see below.
 
 Everything else is upstream as it is. The upstream workflows are disabled in this repository
