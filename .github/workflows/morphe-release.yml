@@ -133,7 +133,18 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    outputs:
+      glibc: ${{ steps.glibc.outputs.package }}
     steps:
+      # The locales are compiled by the glibc package of the release, see morphe-locales.yml
+      - name: Find the glibc package
+        id: glibc
+        env:
+          PACKAGES: ${{ inputs.build }} ${{ inputs.mirror }}
+        run: |
+          package=$(tr ' ' '\n' <<< "$PACKAGES" | grep '^glibc-' || true)
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v8.0.1
         with:
           path: dist
@@ -164,3 +175,13 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 ||
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file ../notes.md
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber -- *
+
+  locales:
+    needs: release
+    if: needs.release.outputs.glibc != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/morphe-locales.yml
+    with:
+      tag: ${{ inputs.tag }}
+      glibc: ${{ needs.release.outputs.glibc }}

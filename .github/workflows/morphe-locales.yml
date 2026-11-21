@@ -1,0 +1,76 @@
+name: Release locales
+
+# Compiles locales with the localedef of the glibc package a release holds and adds them to that
+# release. termux-pacman's package leaves compiling them to locale-gen on the device, which an app
+# that only unpacks the libraries never runs. A compiled locale only fits the glibc version that
+# compiled it, so it goes with the package it was compiled by.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release that holds the glibc package and gets the locales
+        required: true
+      glibc:
+        description: The glibc package, named as its file is
+        default: glibc-2.44-0
+      locales:
+        description: Locales to compile, each as <locale>.<charmap>
+        default: C.UTF-8
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      glibc:
+        type: string
+        required: true
+      locales:
+        type: string
+        default: C.UTF-8
+
+permissions: {}
+
+jobs:
+  locales:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          GLIBC: ${{ inputs.glibc }}
+          LOCALES: ${{ inputs.locales }}
+        run: |
+          # The files of a compiled locale are the same on every little-endian architecture, which
+          # every package of the release is built for, so the build for the runner compiles them
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$GLIBC-x86_64.pkg.tar.xz"
+          mkdir package locales
+          tar -xJf "$GLIBC-x86_64.pkg.tar.xz" -C package
+          prefix=package/data/data/com.termux/files/usr/glibc
+          gunzip -k "$prefix"/share/i18n/charmaps/*.gz
+
+          for locale in $LOCALES; do
+            # The package is built for termux's prefix, so its own loader runs it from here
+            I18NPATH=$prefix/share/i18n "$prefix/lib/ld-linux-x86-64.so.2" --library-path "$prefix/lib" \
+              "$prefix/bin/localedef" --no-archive -i "${locale%%.*}" -f "${locale#*.}" "locales/$locale"
+          done
+
+          tar -C locales --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -cf - . |
+            xz -9e > "$GLIBC-locales.tar.xz"
+          tar -tvJf "$GLIBC-locales.tar.xz"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          GLIBC: ${{ inputs.glibc }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS
+          grep -v -- " $GLIBC-locales.tar.xz\$" SHA256SUMS > SHA256SUMS.new || true
+          sha256sum -- "$GLIBC-locales.tar.xz" >> SHA256SUMS.new
+          mv SHA256SUMS.new SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber -- "$GLIBC-locales.tar.xz" SHA256SUMS

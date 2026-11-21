@@ -14,7 +14,8 @@ termux-pacman keeps the latest build of each package alone, so the app downloads
   patches of the glibc sources (`*.c.patch`). Reported upstream in
   [termux-pacman/glibc-packages#404](https://github.com/termux-pacman/glibc-packages/issues/404):
   once upstream fixes the calls there, a merge takes their fix and these changes go.
-- `morphe/`, `.github/README.md` and `.github/workflows/morphe-release.yml`: the release, see below.
+- `morphe/`, `.github/README.md`, `.github/workflows/morphe-release.yml` and
+  `.github/workflows/morphe-locales.yml`: the release, see below.
 
 Everything else is upstream as it is. The upstream workflows are disabled in this repository
 rather than removed, as they upload to the servers of termux-pacman.
@@ -47,7 +48,16 @@ next to the recipe and source it was built from (`*-recipe.tar.xz`, `*-source.ta
 LGPL and GPL require, and `SHA256SUMS`. The release notes record the commits and the builder
 image. The app pins each package by its SHA-256, see `embeddedJvms` in `app/build.gradle.kts`.
 
-A release is never changed once the app pins it: a new build or version goes to a new tag.
+A release with glibc also gets `<glibc package>-locales.tar.xz`, the locales the app needs compiled
+by the `localedef` of that package, as a compiled locale only fits the glibc that compiled it.
+termux-pacman leaves compiling them to `locale-gen` on the device. The files of a locale are the
+same on every little-endian architecture, so one archive, `C.UTF-8/LC_*`, serves every ABI. Without
+a UTF-8 locale glibc reports ASCII, and the JVM cannot open any path with another character. The
+**Release locales** workflow compiles them again for an existing release, with `tag` and `glibc`.
+
+A release is never changed once the app pins it: a new build or version goes to a new tag. The
+locales of its glibc are the one thing added to a release later, as they leave every pinned file
+as it is.
 
 ## When to release
 
