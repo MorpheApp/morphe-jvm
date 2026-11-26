@@ -1,0 +1,12 @@
+--- a/sysdeps/unix/sysv/linux/arm/sysdep.h
++++ b/sysdeps/unix/sysv/linux/arm/sysdep.h
+@@ -360,7 +360,8 @@
+
+ /* List of system calls which are supported as vsyscalls.  */
+ #define HAVE_CLOCK_GETTIME_VSYSCALL	"__vdso_clock_gettime"
+-#define HAVE_CLOCK_GETTIME64_VSYSCALL	"__vdso_clock_gettime64"
++/* Android reads the time through __vdso_clock_gettime alone on 32-bit ARM, so the time64 entry of
++   the compat vDSO goes untested by vendors and returns no time on some of their kernels.  */
+ #define HAVE_GETTIMEOFDAY_VSYSCALL	"__vdso_gettimeofday"
+ #define HAVE_CLONE3_WRAPPER		1
+
